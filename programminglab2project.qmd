@@ -1,0 +1,765 @@
+---
+title: "Variety in the world of road cycling"
+subtitle: "Programming lab2 report"
+author: "Jakub Czabok"
+format: pdf
+fontsize: 12pt
+papersize: a4
+geometry: margin=1in
+---
+# Information
+
+**Student ID:** 1900129640
+
+**E-mail address:** jakub.czabok@studio.unibo.it
+
+# Introduction and research questions
+
+Road cycling is one of the most diverse and dynamic sports, combining physical endurance, tactical acumen, and team strategy. The pinnacle of one-day racing is represented by the five monuments: Milano-San Remo, Ronde van Vlaanderen, Paris-Roubaix, Liège-Bastogne-Liège, and Il Lombardia. These races are revered for their historical significance, challenging courses, and the prestige they confer upon the winners. Each monument is unique in its terrain, weather, and demands, contributing to the rich tapestry of cycling.
+
+This report aims to analyze the variety within these iconic races, focusing on their characteristics and the riders who have excelled in them. By exploring recent history, we will identify patterns and trends that highlight the evolution of the sport, the diverse skill sets of riders, and the unique demands of each race. From the cobblestones of Paris-Roubaix to the long climbs of Il Lombardia, each Monument offers a different challenge, attracting riders with distinct specializations. 
+
+This study will provide insights into the diversity and complexity of professional cycling by focusing on its most storied and challenging races. By examining recent history, I hope to uncover the factors that define success in these unique events and celebrate the variety that makes the sport so compelling.
+
+Libraries needed for R code that appears in this report: rvesr, dplyr, stringr, ggplot2, knitr, class, caret
+
+# Data description
+
+For collecting data I used following libraries: 'rvest' for fetching data from websites, 'dplyr' for data manipulation and 'stringr' for text manipulation.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+```
+
+The data used in this report was fully web-scraped from the ProCyclingStats website (https://www.procyclingstats.com/), a comprehensive and widely recognized source for cycling statistics and race results. The data collection focused on the top 20 riders from monumental races in years 2021-2023. Here is code scrapping data for Milano-San Remo, it looked almost the same for other races the only differences were slight change variables (adding suffix 'msr' for Milano-San Remo, 'rvv' for Ronde van Vlaanderen etc.) and changing the core of link to website for different races. Only major complication is in the code for collecting Liege-Bastogne-Liege data where in 2022 there was later disqualified rider at 17th place so it looked like 2 riders had same place which caused me to have to manually remove disqualified rider with some additional code.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+all_results_msr <- data.frame()
+
+for (year in 2021:2023) {
+  
+url_msr <- paste0(
+  "https://www.procyclingstats.com/race/milano-sanremo/", 
+  year, "/result"
+)
+
+  
+  webpage_msr <- read_html(url_msr)
+  
+  # finding table with results and converting it
+  table_msr <- webpage_msr %>% 
+    html_element("table") %>% 
+    html_table(header = TRUE, fill = TRUE) %>% 
+    as.data.frame()
+  
+  names(table_msr) <- make.names(names(table_msr), unique = TRUE)
+  
+  table_msr <- table_msr %>% 
+    rename_with(tolower)
+  
+  # filtering top20 riders and removing not needed columns
+  table_msr <- table_msr %>% 
+    select(-any_of(c("bib", "h2h", "specialty", "uci", "pnt", "v12",
+                     "time", "avg", "x"))) %>%
+    mutate(rnk = as.numeric(rnk)) %>%
+    filter(rnk <= 20)
+  
+  # extracting urls to riders profiles
+  urls_msr <- webpage_msr %>% 
+    html_elements("table tbody tr td a") %>%
+    html_attr("href") %>%
+    str_subset("rider") %>%
+    paste0("https://www.procyclingstats.com/", .)
+  
+  # adding urls to dataframe
+  table_msr <- table_msr %>% 
+    mutate(url = urls_msr[1:nrow(table_msr)])
+  
+  table_msr$year <- year
+  all_results_msr <- bind_rows(all_results_msr, table_msr)
+}
+
+all_results_rvv <- data.frame()
+
+for (year in 2021:2023) {
+  
+  url_rvv <- paste0(
+    "https://www.procyclingstats.com/race/ronde-van-vlaanderen/", 
+    year, "/result")
+  
+  webpage_rvv <- read_html(url_rvv)
+  
+  # finding table with results and converting it
+  table_rvv <- webpage_rvv %>% 
+    html_element("table") %>% 
+    html_table(header = TRUE, fill = TRUE) %>% 
+    as.data.frame()
+  
+  names(table_rvv) <- make.names(names(table_rvv), unique = TRUE)
+  
+  table_rvv <- table_rvv %>% 
+    rename_with(tolower)
+  
+  # filtering top20 riders and removing not needed columns
+  table_rvv <- table_rvv %>% 
+    select(-any_of(c("bib", "h2h", "specialty", "uci", "pnt", "v12",
+                     "time", "avg", "x"))) %>%
+    mutate(rnk = as.numeric(rnk)) %>%
+    filter(rnk <= 20)
+  
+  # extracting urls to riders profiles
+  urls_rvv <- webpage_rvv %>% 
+    html_elements("table tbody tr td a") %>%
+    html_attr("href") %>%
+    str_subset("rider") %>%
+    paste0("https://www.procyclingstats.com/", .)
+  
+  # adding urls to dataframe
+  table_rvv <- table_rvv %>% 
+    mutate(url = urls_rvv[1:nrow(table_rvv)])
+  
+  table_rvv$year <- year
+  all_results_rvv <- bind_rows(all_results_rvv, table_rvv)
+}
+
+all_results_rbx <- data.frame()
+
+for (year in 2021:2023) {
+  
+  url_rbx <- paste0(
+    "https://www.procyclingstats.com/race/paris-roubaix/", 
+    year, "/result")
+  
+  webpage_rbx <- read_html(url_rbx)
+  
+  # finding table with results and converting it
+  table_rbx <- webpage_rbx %>% 
+    html_element("table") %>% 
+    html_table(header = TRUE, fill = TRUE) %>% 
+    as.data.frame()
+  
+  names(table_rbx) <- make.names(names(table_rbx), unique = TRUE)
+  
+  table_rbx <- table_rbx %>% 
+    rename_with(tolower)
+  
+  # filtering top20 riders and removing not needed columns
+  table_rbx <- table_rbx %>% 
+    select(-any_of(c("bib", "h2h", "specialty", "uci", "pnt", "v12", 
+                     "time", "avg", "x"))) %>%
+    mutate(rnk = as.numeric(rnk)) %>%
+    filter(rnk <= 20)
+  
+  # extracting urls to riders profiles
+  urls_rbx <- webpage_rbx %>% 
+    html_elements("table tbody tr td a") %>%
+    html_attr("href") %>%
+    str_subset("rider") %>%
+    paste0("https://www.procyclingstats.com/", .)
+  
+  # adding urls to dataframe
+  table_rbx <- table_rbx %>% 
+    mutate(url = urls_rbx[1:nrow(table_rbx)])
+  
+  table_rbx$year <- year
+  all_results_rbx <- bind_rows(all_results_rbx, table_rbx)
+}
+
+all_results_lbl <- data.frame()
+
+for (year in 2021:2023) {
+  
+  url_rbx <- paste0(
+    "https://www.procyclingstats.com/race/liege-bastogne-liege/", 
+    year, "/result")
+  
+  webpage_lbl <- read_html(url_rbx)
+  
+  # finding table with results and converting it
+  table_lbl <- webpage_lbl %>% 
+    html_element("table") %>% 
+    html_table(header = TRUE, fill = TRUE) %>% 
+    as.data.frame()
+  
+  names(table_lbl) <- make.names(names(table_lbl), unique = TRUE)
+  
+  table_lbl <- table_lbl %>% 
+    rename_with(tolower)
+  
+  # filtering top20 riders and removing not needed columns
+  table_lbl <- table_lbl %>% 
+    select(-any_of(c("bib", "h2h", "specialty", "uci", "pnt", "v12", 
+                     "time", "avg", "x"))) %>%
+    mutate(rnk = as.numeric(rnk)) %>%
+    filter(rnk <= 20)
+  
+  # removing Robert Stannard who got disqualified for doping
+  if (year == 2022) {
+    table_lbl <- table_lbl %>% 
+      filter(!(rnk == 17 & grepl("^STANNARD", rider, 
+                                 ignore.case = TRUE)))
+  }
+  
+  # extracting urls to riders profiles
+  urls_lbl <- webpage_lbl %>% 
+    html_elements("table tbody tr td a") %>%
+    html_attr("href") %>%
+    str_subset("rider") %>%
+    paste0("https://www.procyclingstats.com/", .)
+  
+  # adding urls to dataframe
+  table_lbl <- table_lbl %>% 
+    mutate(url = urls_lbl[1:nrow(table_lbl)])
+  
+  table_lbl$year <- year
+  all_results_lbl <- bind_rows(all_results_lbl, table_lbl)
+}
+
+all_results_lom <- data.frame()
+
+for (year in 2021:2023) {
+  
+  url_lom <- paste0(
+    "https://www.procyclingstats.com/race/il-lombardia/", 
+    year, "/result")
+  
+  webpage_lom <- read_html(url_lom)
+  
+  # finding table with results and converting it
+  table_lom <- webpage_lom %>% 
+    html_element("table") %>% 
+    html_table(header = TRUE, fill = TRUE) %>% 
+    as.data.frame()
+  
+  names(table_lom) <- make.names(names(table_lom), unique = TRUE)
+  
+  table_lom <- table_lom %>% 
+    rename_with(tolower)
+  
+  # filtering top20 riders and removing not needed columns
+  table_lom <- table_lom %>% 
+    select(-any_of(c("bib", "h2h", "specialty", "uci", "pnt", "v12", 
+                     "time", "avg", "x"))) %>%
+    mutate(rnk = as.numeric(rnk)) %>%
+    filter(rnk <= 20)
+  
+  # extracting urls to riders profiles
+  urls_lom <- webpage_lom %>% 
+    html_elements("table tbody tr td a") %>%
+    html_attr("href") %>%
+    str_subset("rider") %>%
+    paste0("https://www.procyclingstats.com/", .)
+  
+  # adding urls to dataframe
+  table_lom <- table_lom %>% 
+    mutate(url = urls_lom[1:nrow(table_lom)])
+  
+  table_lom$year <- year
+  all_results_lom <- bind_rows(all_results_lom, table_lom)
+}
+
+```
+
+Using code above I have created 5 tables each for different race and in each table there are 60 observations (top 20 riders from 3 different editions of race) and 6 columns. Here's breakdown of these variables that were the same for these 5 tables and also table that combined data from 5 monuments which had in total 300 observations.
+
+
+**Variable description (all_results)** 
+
+
+| Variable Name   | Variable Type | Description                                     |
+|-----------------|------------------------|--------------------------------------|
+| rnk             | Qualitative, ordinal   | Rank of the rider in the race        |
+| rider           | Qualitative, nominal   | Name of the rider and his team       |
+| age             | Quantitative, discrete | Age of the rider as an integer       |
+| team            | Qualitative, nominal   | Name of the rider's team             |
+| url             | Qualitative, nominal   | URL address of rider's profile page  |
+| year            | Quantitative, discrete | Edition of the race as a year        |
+
+
+For statistical overview I will present to you the how the average age of top riders around all 5 races differed in each year and also which of the 5 races had the most repetitive results as of repetitions of same riders in results. For that I will use ggplot2 library.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+# comibining all results to one table
+all_results <- bind_rows(
+  all_results_msr,
+  all_results_rvv,
+  all_results_rbx,
+  all_results_lbl,
+  all_results_lom
+)
+
+# ensuring age values are valid
+all_results <- all_results %>%
+  mutate(age = as.numeric(age)) %>%
+  filter(!is.na(age))
+
+average_age_by_year <- all_results %>%
+  group_by(year) %>%
+  summarize(avg_age = mean(age, na.rm = TRUE))
+
+# loading ggplot2 for visualization
+library(ggplot2)
+
+ggplot(average_age_by_year, aes(x = year, y = avg_age)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red", size = 3) +
+  geom_text(
+    aes(label = round(avg_age, 1)), 
+    vjust = -0.5,                   
+    color = "black"
+  ) +
+  labs(
+    title = "Average age of top 20 riders by year",
+    x = "Year",
+    y = "Average age",
+    caption = "Source: ProCyclingStats"
+  ) +
+  scale_x_continuous(breaks = average_age_by_year$year) +
+  scale_y_continuous(
+    limits = c(min(average_age_by_year$avg_age) - 0.5,
+               max(average_age_by_year$avg_age) + 0.5), 
+    expand = c(0, 0))+ 
+  theme_minimal(base_size = 11)
+
+# data frame with the race names and their distinct URL counts
+distinct_urls_count <- data.frame(
+  race = c("Milano-San Remo", "Ronde van Vlaanderen", "Paris-Roubaix", 
+           "Liege-Bastogne-Liege", "Il Lombardia"),
+  distinct_urls = c(
+    n_distinct(all_results_msr$url),
+    n_distinct(all_results_rvv$url),
+    n_distinct(all_results_rbx$url),
+    n_distinct(all_results_lbl$url),
+    n_distinct(all_results_lom$url)
+  )
+)
+
+ggplot(distinct_urls_count, aes(x = reorder(race, -distinct_urls), 
+                                y = distinct_urls, 
+                                fill = race)) + 
+  geom_bar(stat = "identity", color = "black") + 
+  geom_text(aes(label = distinct_urls), vjust = -0.5, color = "black", 
+            size = 5) + 
+  labs(
+    title = "Number of different riders occurring in the results",
+    x = "Race",
+    y = "Number of different riders",
+    caption = "Source: ProCyclingStats"
+  ) + 
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.2))
+  ) + 
+  theme_minimal(base_size = 11) + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+As you can see in the graph above, we found that the average age of top riders has been dropping in recent years. However, this difference is small, and the data used might not provide enough evidence to confirm a more meaningful thesis. This could either suggest better development of young riders in recent years or simply be a coincidence.
+
+Another graph shows that the largest number of different riders who achieved top 20 finishes between 2021 and 2023 was in Liège-Bastogne-Liège. This could indicate that this race offers a greater opportunity for discovering new talented riders. On the other hand, Milano-San Remo had only 40 out of 60 possible riders in the top results, suggesting that this race may have its own specialists who have mastered the positioning and tactics on the Poggio di San Remo.
+
+Next, I will proceed to extract data for specific riders. To do this, I will use a single function and run it for each URL to gather information about the riders' full names, heights, weights, and nationalities.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+# function for getting riders data
+scrape_procycling_data <- function(url) {
+
+  webpage <- read_html(url)
+
+  name <- webpage %>%
+    html_element("h1") %>%
+    html_text(trim = TRUE)
+
+  details <- webpage %>%
+    html_elements(".rdr-info-cont") %>%
+    html_text(trim = TRUE)
+
+  height_text <- details[grep("Height: ", details)]
+  height <- gsub(".*Height: ([0-9\\.]+) m.*", "\\1", height_text) %>%
+    as.numeric() * 100
+
+  weight_text <- details[grep("Weight: ", details)]
+  weight <- gsub(".*Weight: ([0-9]+) kg.*", "\\1", weight_text) %>%
+    as.numeric()
+
+  nationality_text <- details[grep("Nationality: ", details)]
+  nationality <- gsub(".*Nationality: ([A-Za-z]+).*", "\\1", 
+                      nationality_text)
+  nationality <- gsub("Weight", "", nationality)
+  
+  # fixing United States nationality 
+  if (grepl("United", nationality, ignore.case = TRUE)) {
+    nationality <- "USA"
+  }
+  # fixing Great Britain nationality 
+  if (grepl("Great", nationality, ignore.case = TRUE)) {
+    nationality <- "Great Britain"
+  }
+
+  rider_data <- data.frame(
+    Name = name,
+    Nationality = nationality,
+    Height_cm = height,
+    Weight_kg = weight,
+    stringsAsFactors = FALSE
+  )
+
+  return(rider_data)
+}
+
+# function to scrape all rider data from the URLs in a given table
+scrape_all_riders <- function(urls) {
+  all_riders_data <- data.frame()
+
+  for (url in urls) {
+    rider_data <- scrape_procycling_data(url)
+    all_riders_data <- rbind(all_riders_data, rider_data) 
+  }
+
+  return(all_riders_data)
+}
+
+urls_msr <- all_results_msr$url
+urls_rvv <- all_results_rvv$url  
+urls_rbx <- all_results_rbx$url  
+urls_lbl <- all_results_lbl$url  
+urls_lom <- all_results_lom$url  
+
+riders_data_msr <- scrape_all_riders(urls_msr)
+riders_data_rvv <- scrape_all_riders(urls_rvv)
+riders_data_rbx <- scrape_all_riders(urls_rbx)
+riders_data_lbl <- scrape_all_riders(urls_lbl)
+riders_data_lom <- scrape_all_riders(urls_lom)
+
+riders_data <- bind_rows(
+  riders_data_msr %>% mutate(Race = "Milano-San Remo"),
+  riders_data_rvv %>% mutate(Race = "Ronde van Vlaanderen"),
+  riders_data_rbx %>% mutate(Race = "Paris-Roubaix"),
+  riders_data_lbl %>% mutate(Race = "Liege-Bastogne-Liege"),
+  riders_data_lom %>% mutate(Race = "Il Lombardia"))
+
+```
+
+Using code above I have created 5 tables with 60 observations wach and a combined table with 300 observations which stores information about height, weight and nationality of riders.
+
+
+**Variable description (all_riders_data)** 
+
+
+
+| Variable Name   | Variable Type | Description                                     |
+|-----------------|------------------------|--------------------------------------|
+| name            | Qualitative, nominal   | Name of the rider                    |
+| nationality     | Qualitative, nominal   | Nationality of the rider             |
+| height          | Quantitative, discrete | Rider's height                       |
+| weight          | Quantitative, discrete | Rider's weight                       |
+
+
+In the later part of the analytical report, several auxiliary tables were created based on the two main formats found in the all_results_data and all_riders_data.
+
+Now let's take closer look at gathered data. Here we can find average height and weight of the best riders and also how many from them were from each country.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+
+calculate_stats <- function(riders_data) {
+  # remove duplicates based on rider names
+  unique_riders_data <- riders_data[!duplicated(riders_data$Name), ]
+  
+  avg_height <- mean(unique_riders_data$Height_cm, na.rm = TRUE)
+  avg_weight <- mean(unique_riders_data$Weight_kg, na.rm = TRUE)
+  
+  nationality_count <- table(unique_riders_data$Nationality)
+  
+  nationality_df <- as.data.frame(nationality_count)
+  colnames(nationality_df) <- c("Nationality", "Number_of_Riders")
+  nationality_df <- nationality_df[order(
+    -nationality_df$Number_of_Riders), ]
+  
+  stats_summary <- list(
+    Average_Height_cm = avg_height,
+    Average_Weight_kg = avg_weight,
+    Nationality_Count = nationality_df
+  )
+  
+  return(stats_summary)
+}
+
+stats <- calculate_stats(riders_data)
+print(paste("Average height (cm):", round(stats$Average_Height_cm, 2)))
+print(paste("Average weight (kg):", round(stats$Average_Weight_kg, 2)))
+print("Number of riders per nationality:")
+print(stats$Nationality_Count)
+
+
+```
+
+As we can see above average height of top riders is similar to average height in general but weight is a bit smaller due to gains which lightweight riders can have while climbing on steep hills. In the nations section we can see that traditional cycling countries such us Belgium, France and Italy are leading. It's not surprising also because in these three countries all the monuments take place. Next up we have well-known for theirs bike paths Denmark and Netherlands which have very good results for theirs small populations.
+
+# Analysis
+
+
+**Physical parameters of riders in each race**
+
+
+I will begin my analysis with taking closer look at physical parameters of the riders. It is often regarded that riders well performing in cobble classics like Ronde van Vlaanderen and Paris-Roubaix ought to be more muscular and in general bigger to have greater absolute power. With following code I will check if it was true for the best riders in 2021-2023. For that I will use apart from libraries mentioned earlier an addition of knitr.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+
+# store stats for each race in variables
+msr_stats <- data.frame(
+  Race = "Milano-San Remo",
+  Avg_Height = round(mean(riders_data_msr$Height_cm, na.rm = TRUE),1),
+  Median_Height = median(riders_data_msr$Height_cm, na.rm = TRUE),
+  Avg_Weight = round(mean(riders_data_msr$Weight_kg, na.rm = TRUE),1),
+  Median_Weight = median(riders_data_msr$Weight_kg, na.rm = TRUE)
+)
+
+rvv_stats <- data.frame(
+  Race = "Ronde van Vlaanderen",
+  Avg_Height = round(mean(riders_data_rvv$Height_cm, na.rm = TRUE),1),
+  Median_Height = median(riders_data_rvv$Height_cm, na.rm = TRUE),
+  Avg_Weight = round(mean(riders_data_rvv$Weight_kg, na.rm = TRUE),1),
+  Median_Weight = median(riders_data_rvv$Weight_kg, na.rm = TRUE)
+)
+
+rbx_stats <- data.frame(
+  Race = "Paris-Roubaix",
+  Avg_Height = round(mean(riders_data_rbx$Height_cm, na.rm = TRUE),1),
+  Median_Height = median(riders_data_rbx$Height_cm, na.rm = TRUE),
+  Avg_Weight = round(mean(riders_data_rbx$Weight_kg, na.rm = TRUE),1),
+  Median_Weight = median(riders_data_rbx$Weight_kg, na.rm = TRUE)
+)
+
+lbl_stats <- data.frame(
+  Race = "Liege-Bastogne-Liege",
+  Avg_Height = round(mean(riders_data_lbl$Height_cm, na.rm = TRUE),1),
+  Median_Height = median(riders_data_lbl$Height_cm, na.rm = TRUE),
+  Avg_Weight = round(mean(riders_data_lbl$Weight_kg, na.rm = TRUE),1),
+  Median_Weight = median(riders_data_lbl$Weight_kg, na.rm = TRUE)
+)
+
+lom_stats <- data.frame(
+  Race = "Il Lombardia",
+  Avg_Height = round(mean(riders_data_lom$Height_cm, na.rm = TRUE),1),
+  Median_Height = median(riders_data_lom$Height_cm, na.rm = TRUE),
+  Avg_Weight = round(mean(riders_data_lom$Weight_kg, na.rm = TRUE),1),
+  Median_Weight = median(riders_data_lom$Weight_kg, na.rm = TRUE)
+)
+
+all_race_stats <- rbind(msr_stats, rvv_stats, rbx_stats, 
+                        lbl_stats, lom_stats)
+
+library(knitr)
+kable(all_race_stats, 
+      caption = "Average and median height and weight of riders by race")
+
+```
+It looks like the presumptions were correct. There is a significant difference between physical parameters of top riders in cobbled classics (Ronde van Vlaanderen, Paris-Roubaix) and more hilly classics (Liege-Bastogne-Liege, Il Lombardia). Meanwhile Milano-San Remo stands in between as a race where all different sorts of riders are competetive. Additional check of median did not show anything interesting - it was very close to mean for every race. 
+
+
+**Which race is the best for the youngsters?**
+
+
+Now let's look at comparison of riders' ages in each of those races.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+
+avg_age_msr <- mean(all_results_msr$age, na.rm = TRUE)
+avg_age_rvv <- mean(all_results_rvv$age, na.rm = TRUE)
+avg_age_rbx <- mean(all_results_rbx$age, na.rm = TRUE)
+avg_age_lbl <- mean(all_results_lbl$age, na.rm = TRUE)
+avg_age_lom <- mean(all_results_lom$age, na.rm = TRUE)
+
+avg_age_data <- data.frame(
+  Race = c("Milano-San Remo", "Ronde van Vlaanderen", 
+           "Paris-Roubaix", "Liege-Bastogne-Liege", 
+           "Il Lombardia"),
+  Avg_Age = c(avg_age_msr, avg_age_rvv, avg_age_rbx, avg_age_lbl, 
+              avg_age_lom)
+)
+
+ggplot(avg_age_data, aes(x = reorder(Race, -Avg_Age), y = Avg_Age, 
+                         fill = Race)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(aes(label = round(Avg_Age, 1)), vjust = -0.5, size = 5, 
+            color = "black") +
+  labs(
+    title = "Comparison of average rider age by race",
+    x = "Race",
+    y = "Average age",
+    fill = "Race",
+    caption = "Source: ProCyclingStats"
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.2))
+  )+
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+  ) 
+
+
+```
+
+On average, older riders succeed, and the youngest riders seize their chances in Il Lombardia. However, the differences in this regard are very small, so it might not be a very significant part of the analysis.
+
+**Predicting the best race for given physical parameters using KNN classificaton**
+
+
+Now having analysed physical parameters and age or riders let's proceed to creating predidictive model finding best suited race for given riders parameters. Following code uses libraries 'class' and 'caret' and     applies the k-nearest neighbors (KNN) algorithm to predict which race is most suitable for riders based on their physical characteristics, specifically weight and height. The dataset is split into a training set (70%) and a testing set (30%). The KNN model is trained on the training set using riders' weight and height, and it predicts the race for the test set. The model’s accuracy is calculated by comparing the predicted races to the actual races. Additionally, two scatter plots are created: one for the actual race data and another for the predicted race data, helping visualize how weight and height relate to race success.
+
+KNN works by predicting the class (race) of a test point based on the majority class of its k nearest neighbors from the training data. The model's performance is evaluated through accuracy, which tells us how well the model’s predictions match the true outcomes.
+
+This approach is valuable for your analysis of variety in cycling because it enables the classification of riders into different races based on their physical attributes. By applying KNN, we can better understand which physical characteristics (like weight and height) align with success in specific races, which enhances the insights into race suitability and rider performance in different cycling disciplines.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+
+library(class) 
+library(caret)
+
+# splitting the dataset into training and testing data 
+# (70% training, 30% testing)
+set.seed(42)  # For reproducibility
+trainIndex <- createDataPartition(riders_data$Race, p = 0.7, list = FALSE)
+train_data <- riders_data[trainIndex, ]
+test_data <- riders_data[-trainIndex, ]
+
+train_data_clean <- train_data %>% filter(
+  !is.na(Weight_kg) & !is.na(Height_cm))
+test_data_clean <- test_data %>% filter(
+  !is.na(Weight_kg) & !is.na(Height_cm))
+
+train_data_knn <- train_data_clean[, c("Weight_kg", "Height_cm")]
+train_labels <- train_data_clean$Race
+
+test_data_knn <- test_data_clean[, c("Weight_kg", "Height_cm")]
+test_labels <- test_data_clean$Race
+
+k <- 5  
+predicted_races <- knn(train = train_data_knn, 
+                       test = test_data_knn, cl = train_labels, k = k)
+
+test_data_clean$Predicted_Race <- predicted_races
+
+# calculating accuracy
+accuracy <- sum(predicted_races == test_labels) / length(test_labels)
+
+cat("Prediction accuracy:", round(accuracy * 100, 2), "%\n")
+
+# visualization for training data
+ggplot(train_data, aes(x = Weight_kg, y = Height_cm, color = Race)) +
+  geom_point(size = 3, alpha = 0.7) +
+  labs(
+    title = "Actual Height vs. Weight of riders by race ",
+    x = "Weight (kg)",
+    y = "Height (cm)",
+    color = "Race"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(plot.margin = margin(1, 1, 1, 1, "cm"))
+
+
+# visualization for prediction
+ggplot(test_data_clean, aes(x = Weight_kg, y = Height_cm, 
+                            color = Predicted_Race)) +
+  geom_point(shape = 17, size = 3, alpha = 0.7) +
+  labs(
+    title = "Predicted Height vs. Weight of riders",
+    x = "Weight (kg)",
+    y = "Height (cm)",
+    color = "Predicted Race"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme(plot.margin = margin(1, 1, 1, 1, "cm"))
+
+```
+
+The prediction's accuracy was quite low, but given the limited dataset and the difficulty in distinguishing between these races, it is not a bad result under the circumstances.
+
+
+**Riders and nations rankings**
+
+
+Now, I will create rankings of the best riders and nations. To do this, I will analyze the results from each race and assign points to each rider: 20 points for 1st place, 19 points for 2nd, ..., and 1 point for 20th.
+
+```{r message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE}
+calculate_points <- function(rnk) {
+  return(21 - rnk)  
+}
+
+# function to process each table and calculate points for each URL
+process_race_results <- function(race_data) {
+  race_data %>%
+    filter(!is.na(url) & !is.na(rnk)) %>%
+    mutate(Points = sapply(rnk, calculate_points)) %>%
+    group_by(url) %>%
+    summarise(Total_Points = sum(Points, na.rm = TRUE)) %>%
+    ungroup()
+}
+
+race_tables <- list(all_results_msr, all_results_rvv, all_results_rbx, 
+                    all_results_lbl, all_results_lom)
+
+all_rider_scores <- data.frame(url = character(), Total_Points = numeric(), 
+                               stringsAsFactors = FALSE)
+
+# process each race table and sum points for each URL
+for (race_table in race_tables) {
+  race_scores <- process_race_results(race_table)
+  all_rider_scores <- bind_rows(all_rider_scores, race_scores)
+}
+
+final_scores <- all_rider_scores %>%
+  group_by(url) %>%
+  summarise(Total_Score = sum(Total_Points, na.rm = TRUE)) %>%
+  arrange(desc(Total_Score))  
+
+# getting riders details
+rider_details <- lapply(final_scores$url, scrape_procycling_data)
+
+rider_info_with_scores <- bind_cols(final_scores, 
+                                    do.call(rbind, rider_details))
+
+rider_ranking <- rider_info_with_scores %>%
+  select(Name, Nationality, Total_Score) %>%
+  arrange(desc(Total_Score)) %>%
+  mutate(Rank = row_number()) %>%
+  select(Rank, Name, Nationality, Total_Score) 
+
+# display rider ranking
+cat("Rider ranking:\n")
+kable(rider_ranking, col.names = c("Rank","Rider name", "Nationality", "Total score"), format = "pipe", align = "c")
+
+# nationality-based ranking 
+nationality_ranking <- rider_info_with_scores %>%
+  group_by(Nationality) %>%
+  summarise(Total_Nationality_Score = sum(Total_Score, na.rm = TRUE)) %>%
+  arrange(desc(Total_Nationality_Score)) %>%
+  mutate(Rank = row_number()) %>%
+  select(Rank, Nationality, Total_Nationality_Score)
+
+cat("\nNations ranking:\n")
+kable(nationality_ranking, col.names = c("Rank","Nation", "Total score"), format = "pipe", align = "c")
+
+```
+
+In the tables above, we can see that the best riders in the monuments during the years 2021-2023 were Mathieu van der Poel, Tadej Pogačar, and Wout van Aert. This trio dominated the entire field. Their impressive performances had a significant impact on the national rankings, especially Pogačar’s, which helped Slovenia secure 3rd place, despite the country not having a large number of professional cyclists.
+
+
+# Conclusion
+
+This study explored the diversity within the world of cycling by analyzing the results of the five major cycling monuments between 2021 and 2023. Through this analysis, we aimed to understand which physical attributes and age groups are best suited for success in different types of races. The study also developed a predictive model capable of classifying the most appropriate race for a rider based on their physical characteristics, and created a ranking of the best riders and nations based on their performance across all monuments.
+
+One of the most notable findings was the significant difference in the physical parameters s of riders who performed well in the cobbled classics (Ronde van Vlaanderen, Paris-Roubaix) compared to those who excelled in the hilly classics (Liege-Bastogne-Liege, Il Lombardia). Riders competing in cobbled races tended to have greater mass and strength, while those excelling in the hilly classics were typically lighter and more agile. That is a sufficient evidence that cycling has a big variety of body types among top riders. Furthermore, the analysis showed that top riders in Paris-Roubaix were generally a bit older compared to those dominating other monuments, highlighting the tactical and endurance demands of this iconic race.
+
+In terms of performance, the study identified Mathieu van der Poel, Tadej Pogačar, and Wout van Aert as the top riders across the monuments. Belgium, France, and Slovenia emerged as the best-performing nations overall, further emphasizing the consistent dominance of these countries in the world of cycling.
+
+Overall, this study provides valuable insights for cyclists and teams, offering a deeper understanding of the interplay between physical attributes, age, and race suitability. It also underscores the dominance of specific riders and nations, contributing to the broader narrative of cycling's most prestigious events.
+
