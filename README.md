@@ -1,0 +1,2 @@
+This reposiory containes folder with data-analysis project that contained sentiment analysis and predictive model based on text of movie reviews from this dataset https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews/data.
+This repository also containes parts of other project like webscrapping and data-analysis in programminglab2 qmd report file and also codes for TOPSIS, Logistical regression and gradient-boosting analysis models.
